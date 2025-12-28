@@ -257,8 +257,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                     <h4 class="card-title fw-bold mb-1">${event.title}</h4>
-                    <div class="mb-3">
-                        <span class="text-muted small">by <strong>${event.organizer || 'Unknown Organizer'}</strong></span>
+                    <div class="mb-3 d-flex align-items-center">
+                        ${event.organizer_details && event.organizer_details.image_url ? `
+                            <img src="${event.organizer_details.image_url}" alt="${event.organizer}" class="organizer-img">
+                        ` : ''}
+                        <span class="text-muted small">
+                            by <strong>${event.organizer || 'Unknown Organizer'}</strong>
+                            ${event.organizer_details && event.organizer_details.description ? `
+                                <button class="organizer-info-btn ms-2" 
+                                        data-bs-toggle="popover" 
+                                        data-bs-trigger="focus"
+                                        title="${event.organizer}" 
+                                        data-bs-content="${event.organizer_details.description.replace(/"/g, '&quot;')}">
+                                    <i class="bi bi-info-circle"></i>
+                                </button>
+                            ` : ''}
+                        </span>
                     </div>
                     <div class="text-muted mb-4">
                         <div class="row g-2">

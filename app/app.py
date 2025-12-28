@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, Response, abort
+from flask import Flask, render_template, jsonify, Response, abort, send_from_directory
 import os
 import yaml
 from datetime import datetime
@@ -7,6 +7,45 @@ from icalendar import Calendar, Event
 app = Flask(__name__)
 
 EVENTS_DIR = 'data/events'
+ORGANIZERS_DIR = 'data/organizers'
+
+
+def load_organizers():
+    """
+    Loads all organizers from the data/organizers directory.
+    Each organizer is stored in its own subdirectory with an organizer.yaml and description.md file.
+    Returns a dictionary of organizers with their directory name as the key.
+    """
+    organizers = {}
+    if not os.path.exists(ORGANIZERS_DIR):
+        return organizers
+
+    for item in os.listdir(ORGANIZERS_DIR):
+        item_path = os.path.join(ORGANIZERS_DIR, item)
+        if os.path.isdir(item_path):
+            yaml_path = os.path.join(item_path, 'organizer.yaml')
+            if os.path.exists(yaml_path):
+                with open(yaml_path, 'r') as f:
+                    try:
+                        org_data = yaml.safe_load(f)
+                        org_data['id'] = item
+
+                        # Load detailed description from Markdown file
+                        description_path = os.path.join(item_path, 'description.md')
+                        if os.path.exists(description_path):
+                            with open(description_path, 'r') as df:
+                                org_data['description'] = df.read()
+
+                        # Check if image exists
+                        image_path = os.path.join(item_path, 'image.png')
+                        if os.path.exists(image_path):
+                            org_data['image_url'] = f'/organizer/{item}/image.png'
+
+                        organizers[item.lower()] = org_data
+                    except yaml.YAMLError as exc:
+                        print(f"Error parsing {yaml_path}: {exc}")
+    return organizers
+
 
 def load_events():
     """
@@ -15,9 +54,11 @@ def load_events():
     Events are returned as a list of dictionaries, sorted by date.
     """
     events = []
+    organizers = load_organizers()
+
     if not os.path.exists(EVENTS_DIR):
         return events
-    
+
     for item in os.listdir(EVENTS_DIR):
         item_path = os.path.join(EVENTS_DIR, item)
         if os.path.isdir(item_path):
@@ -26,20 +67,26 @@ def load_events():
                 with open(yaml_path, 'r') as f:
                     try:
                         event_data = yaml.safe_load(f)
-                        
+
                         # Load detailed description from Markdown file
                         description_path = os.path.join(item_path, 'description.md')
                         if os.path.exists(description_path):
                             with open(description_path, 'r') as df:
                                 event_data['description'] = df.read()
 
+                        # Link organizer data
+                        org_name = event_data.get('organizer', '').lower()
+                        if org_name in organizers:
+                            event_data['organizer_details'] = organizers[org_name]
+
                         events.append(event_data)
                     except yaml.YAMLError as exc:
                         print(f"Error parsing {yaml_path}: {exc}")
-    
+
     # Sort events chronologically by their start date
     events.sort(key=lambda x: str(x.get('date', '')))
     return events
+
 
 @app.route('/')
 def index():
@@ -47,41 +94,52 @@ def index():
     events = load_events()
     return render_template('index.html', events=events)
 
+
+@app.route('/organizer/<org_id>/image.png')
+def organizer_image(org_id):
+    """Serves the organizer's image."""
+    org_path = os.path.join(ORGANIZERS_DIR, org_id)
+    if os.path.exists(org_path) and os.path.isdir(org_path):
+        return send_from_directory(org_path, 'image.png')
+    abort(404)
+
+
 @app.route('/api/events')
 def api_events():
     """Returns all events as a JSON object for the frontend."""
     events = load_events()
     return jsonify(events)
 
+
 @app.route('/event/<event_id>.ics')
 def event_ics(event_id):
     """Generates and returns an iCalendar file for a specific event."""
     events = load_events()
     event_data = next((e for e in events if e.get('id') == event_id), None)
-    
+
     if not event_data:
         abort(404)
-        
+
     cal = Calendar()
     cal.add('prodid', '-//OpenTrack//opentrack.dev//')
     cal.add('version', '2.0')
-    
+
     event = Event()
     event.add('summary', event_data.get('title'))
-    
+
     # Handle start date
     dt_start = event_data.get('date')
     if isinstance(dt_start, str):
         dt_start = datetime.strptime(dt_start, '%Y-%m-%d').date()
     event.add('dtstart', dt_start)
-    
+
     # Handle end date if available
     dt_end = event_data.get('end_date')
     if dt_end:
         if isinstance(dt_end, str):
             dt_end = datetime.strptime(dt_end, '%Y-%m-%d').date()
         event.add('dtend', dt_end)
-    
+
     # Set location string
     location_parts = [
         event_data.get('location', {}).get('address', ''),
@@ -89,14 +147,14 @@ def event_ics(event_id):
         event_data.get('location', {}).get('country')
     ]
     event.add('location', ", ".join(filter(None, location_parts)))
-    
+
     # Construct detailed description including all available event data
     description_parts = []
-    
+
     if event_data.get('description'):
         description_parts.append(event_data.get('description'))
-        description_parts.append("") # Empty line for spacing
-    
+        description_parts.append("")  # Empty line for spacing
+
     fields_to_include = {
         'Organizer': event_data.get('organizer'),
         'Type': event_data.get('type'),
@@ -106,7 +164,7 @@ def event_ics(event_id):
         'URL': event_data.get('url'),
         'Tags': ", ".join(event_data.get('tags', [])) if event_data.get('tags') else None
     }
-    
+
     price_data = event_data.get('price')
     if price_data:
         if isinstance(price_data, dict):
@@ -120,25 +178,26 @@ def event_ics(event_id):
                 fields_to_include['Price'] = f"{formatted_amount} {currency}"
         else:
             fields_to_include['Price'] = str(price_data)
-            
+
     for label, value in fields_to_include.items():
         if value:
             description_parts.append(f"{label}: {value}")
-    
+
     event.add('description', "\n".join(description_parts))
     event.add('url', event_data.get('url'))
     event['uid'] = f"{event_id}@opentrack.dev"
-    
+
     if event_data.get('organizer'):
         event.add('organizer', event_data.get('organizer'))
-    
+
     cal.add_component(event)
-    
+
     return Response(
         cal.to_ical(),
         mimetype="text/calendar",
         headers={"Content-disposition": f"attachment; filename={event_id}.ics"}
     )
+
 
 @app.route('/events.ics')
 def all_events_ics():
@@ -148,24 +207,24 @@ def all_events_ics():
     cal.add('prodid', '-//OpenTrack//opentrack.dev//')
     cal.add('version', '2.0')
     cal.add('x-wr-calname', 'OpenTrack.dev Events')
-    
+
     for event_data in events_data:
         event = Event()
         event.add('summary', event_data.get('title'))
-        
+
         # Start date
         dt_start = event_data.get('date')
         if isinstance(dt_start, str):
             dt_start = datetime.strptime(dt_start, '%Y-%m-%d').date()
         event.add('dtstart', dt_start)
-        
+
         # End date
         dt_end = event_data.get('end_date')
         if dt_end:
             if isinstance(dt_end, str):
                 dt_end = datetime.strptime(dt_end, '%Y-%m-%d').date()
             event.add('dtend', dt_end)
-        
+
         # Location
         location_parts = [
             event_data.get('location', {}).get('address', ''),
@@ -173,13 +232,13 @@ def all_events_ics():
             event_data.get('location', {}).get('country')
         ]
         event.add('location', ", ".join(filter(None, location_parts)))
-        
+
         # Description
         description_parts = []
         if event_data.get('description'):
             description_parts.append(event_data.get('description'))
             description_parts.append("")
-        
+
         fields_to_include = {
             'Organizer': event_data.get('organizer'),
             'Type': event_data.get('type'),
@@ -189,7 +248,7 @@ def all_events_ics():
             'URL': event_data.get('url'),
             'Tags': ", ".join(event_data.get('tags', [])) if event_data.get('tags') else None
         }
-        
+
         price_data = event_data.get('price')
         if price_data:
             if isinstance(price_data, dict):
@@ -203,25 +262,26 @@ def all_events_ics():
                     fields_to_include['Price'] = f"{formatted_amount} {currency}"
             else:
                 fields_to_include['Price'] = str(price_data)
-                
+
         for label, value in fields_to_include.items():
             if value:
                 description_parts.append(f"{label}: {value}")
-                
+
         event.add('description', "\n".join(description_parts))
         event.add('url', event_data.get('url'))
         event['uid'] = f"{event_data.get('id')}@opentrack.dev"
-        
+
         if event_data.get('organizer'):
             event.add('organizer', event_data.get('organizer'))
-            
+
         cal.add_component(event)
-    
+
     return Response(
         cal.to_ical(),
         mimetype="text/calendar",
         headers={"Content-disposition": "attachment; filename=events.ics"}
     )
+
 
 if __name__ == '__main__':
     app.run(debug=True)

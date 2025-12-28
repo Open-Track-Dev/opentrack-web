@@ -35,15 +35,23 @@ body {
     z-index: 1;
     border: 1px solid var(--border-color);
 }
-.event-card { 
-    border: 1px solid var(--border-color);
-    border-radius: 24px;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    background: var(--card-bg);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    margin-bottom: 24px;
-    overflow: hidden;
-    position: relative;
+.organizer-img {
+    width: 24px;
+    height: 24px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-right: 8px;
+}
+.organizer-info-btn {
+    padding: 0;
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    text-decoration: none;
+    border: none;
+    background: none;
+}
+.organizer-info-btn:hover {
+    text-decoration: underline;
 }
 .date-badge-container {
     background: white;
