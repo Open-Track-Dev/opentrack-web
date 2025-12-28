@@ -61,4 +61,4 @@ The easiest way to get the project running is using Docker:
 
 ## Contribution
 
-OpenTrack is built by the community, for the community. Add your own events by creating a new directory in `app/data/events/` with the required `event.yaml` and `description.md` files.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to OpenTrack.dev.
