@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenTrack.dev - IT Events</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-800 d-flex align-items-center" href="#">
+                <img src="{{ url_for('static', filename='icon.png') }}" alt="OpenTrack Logo" width="32" height="32" class="me-2 rounded-3">
+                OpenTrack<span class="text-primary">.dev</span>
+            </a>
+        </div>
+    </nav>
+    <header class="hero-section mb-5">
+        <div class="container">
+            <div class="row align-items-center py-5">
+                <div class="col-lg-7">
+                    <div class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill mb-3 fw-bold">
+                        <i class="bi bi-rocket-takeoff me-2"></i>Community Driven Platform
+                    </div>
+                    <h1 class="display-3 fw-800 mb-4 hero-title">Discover the next <br><span class="text-primary">IT Event</span></h1>
+                    <p class="lead text-muted mb-5 fs-5">Tracking conferences, meetups, and IT gatherings worldwide. Built by the community, for the community.</p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="{{ 'webcal://' + url_for('all_events_ics', _external=True) }}" class="btn btn-primary btn-lg shadow-sm px-4">
+                            <i class="bi bi-calendar-plus me-2"></i>Subscribe Webcal
+                        </a>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-dark btn-lg dropdown-toggle px-4" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-download me-2"></i>Export Data
+                            </button>
+                            <ul class="dropdown-menu border-0 shadow-lg p-2">
+                                <li><a class="dropdown-item rounded-3 py-2" href="{{ url_for('all_events_ics') }}"><i class="bi bi-filetype-ics me-2 text-primary"></i>Calendar (ICS)</a></li>
+                                <li><a class="dropdown-item rounded-3 py-2" href="{{ url_for('api_events') }}"><i class="bi bi-filetype-json me-2 text-warning"></i>API (JSON)</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5 d-none d-lg-block text-center position-relative">
+                    <div class="hero-decoration-circle"></div>
+                    <div class="stat-card hero-stat-card">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <div class="bg-primary-subtle p-3 rounded-circle me-3">
+                                <i class="bi bi-calendar-check text-primary fs-3"></i>
+                            </div>
+                            <div class="text-start">
+                                <div class="display-5 fw-800 text-primary mb-0" id="event-count">0</div>
+                                <div class="text-muted text-uppercase small fw-bold letter-spacing-1">Active Events</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <div class="container mb-5">
+        <div class="row align-items-center mb-5">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <div class="search-wrapper">
+                    <input type="text" id="event-search" class="form-control search-input" placeholder="Search events by name, city, or IT topic...">
+                </div>
+            </div>
+            <div class="col-md-6 d-flex justify-content-md-end gap-3 align-items-center">
+                <ul class="nav nav-pills" id="viewTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="list-tab" data-bs-toggle="pill" data-bs-target="#list-view" type="button" role="tab">
+                            <i class="bi bi-grid-fill me-2"></i>Grid
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="calendar-tab" data-bs-toggle="pill" data-bs-target="#calendar-view" type="button" role="tab">
+                            <i class="bi bi-calendar-event-fill me-2"></i>Calendar
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="map-tab" data-bs-toggle="pill" data-bs-target="#map-view" type="button" role="tab">
+                            <i class="bi bi-map-fill me-2"></i>Map
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="row">
+            <aside class="col-lg-3">
+                <div class="filter-section mb-4">
+                    <h5 class="fw-bold mb-4 text-dark">Filters</h5>
+                    <div class="mb-4">
+                        <label class="form-label small text-muted text-uppercase fw-bold mb-3">Event Type</label>
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-type">
+                            <option value="">All Types</option>
+                            <option value="Conference">Conference</option>
+                            <option value="Meetup">Meetup</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small text-muted text-uppercase fw-bold mb-3">Timeframe</label>
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-time">
+                            <option value="future">Future Events</option>
+                            <option value="all">All Time</option>
+                            <option value="past">Past Events</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small text-muted text-uppercase fw-bold mb-3">Options</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="filter-free">
+                            <label class="form-check-label small" for="filter-free">
+                                Free Events Only
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="filter-online">
+                            <label class="form-check-label small" for="filter-online">
+                                Online Access
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small text-muted text-uppercase fw-bold mb-3">Organizer</label>
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-organizer">
+                            <option value="">All Organizers</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label small text-muted text-uppercase fw-bold mb-3">Tags</label>
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-tags" multiple style="height: 150px;">
+                        </select>
+                        <div class="form-text mt-2 small">Hold Ctrl (Cmd) to select multiple tags.</div>
+                    </div>
+                </div>
+            </aside>
+            <main class="col-lg-9">
+                <div class="tab-content" id="viewTabContent">
+                    <div class="tab-pane fade show active" id="list-view" role="tabpanel">
+                        <div id="event-list">
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="calendar-view" role="tabpanel">
+                        <div id='calendar'></div>
+                    </div>
+                    <div class="tab-pane fade" id="map-view" role="tabpanel">
+                        <div id="map"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
