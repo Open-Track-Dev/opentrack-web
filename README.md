@@ -32,6 +32,18 @@ The system automatically loads events from the `data/events` directory. It parse
 
 ## Running the Project
 
+### Using Docker (Recommended)
+
+The easiest way to get the project running is using Docker:
+
+1. Build and start the container:
+   ```bash
+   docker-compose up --build
+   ```
+2. Open your browser at `http://localhost:5000`
+
+### Manual Setup
+
 1. Install dependencies:
    ```bash
    pip install -r requirements.txt
