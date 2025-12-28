@@ -1,0 +1,47 @@
+# OpenTrack.dev
+
+OpenTrack.dev is a community-driven platform for tracking IT events, conferences, and meetups worldwide.
+
+## Features
+
+- **Event Discovery**: Easily find upcoming IT events through a modern web interface.
+- **Multiple Views**:
+  - **Grid View**: A card-based layout for quick scanning of events.
+  - **Calendar View**: A monthly calendar to visualize event dates.
+  - **Map View**: An interactive map showing event locations globally.
+- **Advanced Filtering**: Filter events by type (Conference, Meetup), timeframe (Future, Past), price (Free), online availability, organizer, or tags.
+- **Detailed Event Information**: Each event includes a rich description, location details, pricing (including ranges), language, and speaker counts.
+- **Calendar Integration**:
+  - Subscribe to all events via Webcal.
+  - Download individual event details as ICS files.
+  - Export the entire event list in ICS format.
+- **API Access**: Retrieve all event data in JSON format via a simple API endpoint.
+
+## Project Structure
+
+- `app.py`: Flask-based backend handling event loading and ICS generation.
+- `data/events/`: Directory containing event data. Each event is organized in its own folder with:
+  - `event.yaml`: Main event metadata (title, date, location, price, etc.).
+  - `description.md`: Detailed event description in Markdown format.
+- `static/`: Static assets including CSS, JavaScript, and images.
+- `templates/`: HTML templates for the web interface.
+
+## How it Works
+
+The system automatically loads events from the `data/events` directory. It parses YAML files for structured data and Markdown files for descriptions. Events are automatically sorted chronologically by their start date.
+
+## Running the Project
+
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Run the Flask application:
+   ```bash
+   python app.py
+   ```
+3. Open your browser at `http://127.0.0.1:5000`
+
+## Contribution
+
+OpenTrack is built by the community, for the community. Add your own events by creating a new directory in `data/events/` with the required `event.yaml` and `description.md` files.
