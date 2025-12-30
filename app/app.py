@@ -49,39 +49,55 @@ def load_organizers():
 
 def load_events():
     """
-    Loads all events from the data/events directory.
+    Loads all events from the data/events directory and the data root directory.
     Each event is stored in its own subdirectory with an event.yaml and description.md file.
     Events are returned as a list of dictionaries, sorted by date.
     """
     events = []
     organizers = load_organizers()
 
-    if not os.path.exists(EVENTS_DIR):
-        return events
+    dirs_to_scan = [EVENTS_DIR]
+    # Also scan data/ for event directories (excluding organizers and known system dirs)
+    if os.path.exists('data'):
+        for item in os.listdir('data'):
+            if item in ['events', 'organizers', 'static', 'templates']:
+                continue
+            item_path = os.path.join('data', item)
+            if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, 'event.yaml')):
+                dirs_to_scan.append(item_path)
 
-    for item in os.listdir(EVENTS_DIR):
-        item_path = os.path.join(EVENTS_DIR, item)
-        if os.path.isdir(item_path):
-            yaml_path = os.path.join(item_path, 'event.yaml')
-            if os.path.exists(yaml_path):
-                with open(yaml_path, 'r') as f:
-                    try:
-                        event_data = yaml.safe_load(f)
+    for scan_path in dirs_to_scan:
+        if scan_path == EVENTS_DIR:
+            if not os.path.exists(EVENTS_DIR):
+                continue
+            items = [os.path.join(EVENTS_DIR, i) for i in os.listdir(EVENTS_DIR)]
+        else:
+            items = [scan_path]
 
-                        # Load detailed description from Markdown file
-                        description_path = os.path.join(item_path, 'description.md')
-                        if os.path.exists(description_path):
-                            with open(description_path, 'r') as df:
-                                event_data['description'] = df.read()
+        for item_path in items:
+            if os.path.isdir(item_path):
+                yaml_path = os.path.join(item_path, 'event.yaml')
+                if os.path.exists(yaml_path):
+                    item = os.path.basename(item_path)
+                    with open(yaml_path, 'r') as f:
+                        try:
+                            event_data = yaml.safe_load(f)
+                            event_data['id'] = item
 
-                        # Link organizer data
-                        org_name = event_data.get('organizer', '').lower()
-                        if org_name in organizers:
-                            event_data['organizer_details'] = organizers[org_name]
+                            # Load detailed description from Markdown file
+                            description_path = os.path.join(item_path, 'description.md')
+                            if os.path.exists(description_path):
+                                with open(description_path, 'r') as df:
+                                    event_data['description'] = df.read()
 
-                        events.append(event_data)
-                    except yaml.YAMLError as exc:
-                        print(f"Error parsing {yaml_path}: {exc}")
+                            # Link organizer data
+                            org_name = event_data.get('organizer', '').lower()
+                            if org_name in organizers:
+                                event_data['organizer_details'] = organizers[org_name]
+
+                            events.append(event_data)
+                        except yaml.YAMLError as exc:
+                            print(f"Error parsing {yaml_path}: {exc}")
 
     # Sort events chronologically by their start date
     events.sort(key=lambda x: str(x.get('date', '')))
@@ -125,7 +141,7 @@ def event_ics(event_id):
     cal.add('version', '2.0')
 
     event = Event()
-    event.add('summary', event_data.get('title'))
+    event.add('summary', event_data.get('name') or event_data.get('title'))
 
     # Handle start date
     dt_start = event_data.get('date')
@@ -210,7 +226,7 @@ def all_events_ics():
 
     for event_data in events_data:
         event = Event()
-        event.add('summary', event_data.get('title'))
+        event.add('summary', event_data.get('name') or event_data.get('title'))
 
         # Start date
         dt_start = event_data.get('date')

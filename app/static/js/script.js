@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     return {
                         id: e.id,
-                        title: e.title,
+                        title: e.name || e.title,
                         start: start,
                         end: end,
                         url: e.url,
@@ -71,10 +71,13 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('event-count').innerText = events.length;
             document.getElementById('event-search').placeholder = "Search events by name, city, or IT topic...";
             const tags = new Set();
-            const organizers = new Set();
+            const organizers = new Map();
             events.forEach(e => {
                 e.tags.forEach(t => tags.add(t));
-                if (e.organizer) organizers.add(e.organizer);
+                if (e.organizer) {
+                    const orgName = (e.organizer_details && e.organizer_details.name) ? e.organizer_details.name : e.organizer;
+                    organizers.set(e.organizer, orgName);
+                }
             });
             const tagSelect = document.getElementById('filter-tags');
             Array.from(tags).sort().forEach(tag => {
@@ -84,10 +87,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 tagSelect.appendChild(option);
             });
             const organizerFilter = document.getElementById('filter-organizer');
-            Array.from(organizers).sort().forEach(org => {
+            Array.from(organizers.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
                 const option = document.createElement('option');
-                option.value = org;
-                option.textContent = org;
+                option.value = id;
+                option.textContent = name;
                 organizerFilter.appendChild(option);
             });
             initCalendar();
@@ -128,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const typeMatch = !type || e.type === type;
             const organizerMatch = !organizer || e.organizer === organizer;
             const searchMatch = !search || 
-                e.title.toLowerCase().includes(search) || 
+                (e.name || e.title).toLowerCase().includes(search) || 
                 e.location.city.toLowerCase().includes(search) ||
                 e.location.country.toLowerCase().includes(search) ||
                 e.tags.some(t => t.toLowerCase().includes(search));
@@ -256,22 +259,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             </ul>
                         </div>
                     </div>
-                    <h4 class="card-title fw-bold mb-1">${event.title}</h4>
+                    <h4 class="card-title fw-bold mb-1">${event.name || event.title}</h4>
                     <div class="mb-3 d-flex align-items-center">
                         ${event.organizer_details && event.organizer_details.image_url ? `
                             <img src="${event.organizer_details.image_url}" alt="${event.organizer}" class="organizer-img">
                         ` : ''}
                         <span class="text-muted small">
-                            by <strong>${event.organizer || 'Unknown Organizer'}</strong>
-                            ${event.organizer_details && event.organizer_details.description ? `
-                                <button class="organizer-info-btn ms-2" 
-                                        data-bs-toggle="popover" 
-                                        data-bs-trigger="focus"
-                                        title="${event.organizer}" 
-                                        data-bs-content="${event.organizer_details.description.replace(/"/g, '&quot;')}">
-                                    <i class="bi bi-info-circle"></i>
-                                </button>
-                            ` : ''}
+                            by <strong>${event.organizer_details && event.organizer_details.name ? event.organizer_details.name : 'Unknown Organizer'}</strong>
                         </span>
                     </div>
                     <div class="text-muted mb-4">
