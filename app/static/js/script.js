@@ -37,8 +37,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         end: end,
                         url: e.url,
                         allDay: !e.end_date || moment(e.date).isSame(e.end_date, 'day'),
-                        backgroundColor: e.type === 'Conference' ? '#4f46e5' : '#10b981',
-                        borderColor: e.type === 'Conference' ? '#4f46e5' : '#10b981',
+                        backgroundColor: e.type === 'Conference' ? '#4f46e5' : (e.type === 'Exhibition' ? '#f59e0b' : '#10b981'),
+                        borderColor: e.type === 'Conference' ? '#4f46e5' : (e.type === 'Exhibition' ? '#f59e0b' : '#10b981'),
                         extendedProps: {
                             organizer: e.organizer
                         }
@@ -272,6 +272,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     speakersText = event.speakers;
                 }
             }
+            let badgeColor = '#10b981';
+            if (event.type === 'Conference') badgeColor = '#6366f1';
+            if (event.type === 'Exhibition') badgeColor = '#f59e0b';
+            
             return `
             <div class="card event-card" id="event-${event.id}">
                 <div class="date-section">
@@ -285,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div class="d-flex gap-2">
                             <span class="event-type-badge" 
-                                  style="background-color: ${event.type === 'Conference' ? '#6366f1' : '#10b981'}; color: white;">
+                                  style="background-color: ${badgeColor}; color: white;">
                                 ${event.type}
                             </span>
                             ${event.online ? `

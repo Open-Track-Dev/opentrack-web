@@ -9,7 +9,7 @@ OpenTrack.dev is a community-driven platform for tracking IT events, conferences
   - **Grid View**: A card-based layout for quick scanning of events.
   - **Calendar View**: A monthly calendar to visualize event dates.
   - **Map View**: An interactive map showing event locations globally.
-- **Advanced Filtering**: Filter events by type (Conference, Meetup), timeframe (Future, Past), price (Free), online availability, organizer, or tags.
+- **Advanced Filtering**: Filter events by type (Conference, Exhibition, Meetup), timeframe (Future, Past), price (Free), online availability, organizer, or tags.
 - **Detailed Event Information**: Each event includes a rich description, location details, pricing (including ranges), language, and speaker counts.
 - **Calendar Integration**:
   - Subscribe to all events via Webcal.
