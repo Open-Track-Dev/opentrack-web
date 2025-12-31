@@ -3,11 +3,65 @@ import os
 import yaml
 from datetime import datetime
 from icalendar import Calendar, Event
+from geopy.geocoders import Nominatim
+import json
+import time
 
 app = Flask(__name__)
 
-EVENTS_DIR = 'data/events'
-ORGANIZERS_DIR = 'data/organizers'
+# Determine base data directory
+# Docker environment usually has /app/data mounted
+if os.path.exists('/app/data/events'):
+    DATA_ROOT = '/app/data'
+elif os.path.exists(os.path.join('data', 'events')):
+    DATA_ROOT = 'data'
+else:
+    DATA_ROOT = '.'
+
+EVENTS_DIR = os.path.join(DATA_ROOT, 'events')
+ORGANIZERS_DIR = os.path.join(DATA_ROOT, 'organizers')
+CACHE_DIR = os.path.join(DATA_ROOT, '.cache')
+
+if not os.path.exists(CACHE_DIR):
+    os.makedirs(CACHE_DIR)
+
+geolocator = Nominatim(user_agent="opentrack-web")
+
+def get_coordinates(address, city, country):
+    cache_file = os.path.join(CACHE_DIR, 'geocoding_cache.json')
+    cache = {}
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as f:
+            cache = json.load(f)
+    
+    query = f"{address}, {city}, {country}"
+    if query in cache:
+        return cache[query]
+    
+    # Try multiple queries from most specific to least specific
+    queries = [
+        f"{address}, {city}, {country}",
+        f"{city}, {country}"
+    ]
+    
+    for q in queries:
+        try:
+            print(f"Attempting geocoding for: {q}")
+            location = geolocator.geocode(q)
+            if location:
+                coords = {'latitude': location.latitude, 'longitude': location.longitude}
+                cache[query] = coords # Cache the original full query
+                with open(cache_file, 'w') as f:
+                    json.dump(cache, f)
+                print(f"Successfully geocoded: {q} -> {coords}")
+                time.sleep(1) # Respect Nominatim's usage policy
+                return coords
+        except Exception as e:
+            print(f"Geocoding error for {q}: {e}")
+            time.sleep(1)
+    
+    print(f"Failed to geocode any query for: {query}")
+    return None
 
 
 def load_organizers():
@@ -57,14 +111,13 @@ def load_events():
     organizers = load_organizers()
 
     dirs_to_scan = [EVENTS_DIR]
-    # Also scan data/ for event directories (excluding organizers and known system dirs)
-    if os.path.exists('data'):
-        for item in os.listdir('data'):
-            if item in ['events', 'organizers', 'static', 'templates']:
-                continue
-            item_path = os.path.join('data', item)
-            if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, 'event.yaml')):
-                dirs_to_scan.append(item_path)
+    # Also scan for event directories in DATA_ROOT (excluding organizers and known system dirs)
+    for item in os.listdir(DATA_ROOT):
+        if item in ['events', 'organizers', 'static', 'templates', '.cache']:
+            continue
+        item_path = os.path.join(DATA_ROOT, item)
+        if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, 'event.yaml')):
+            dirs_to_scan.append(item_path)
 
     for scan_path in dirs_to_scan:
         if scan_path == EVENTS_DIR:
@@ -94,6 +147,14 @@ def load_events():
                             org_name = event_data.get('organizer', '').lower()
                             if org_name in organizers:
                                 event_data['organizer_details'] = organizers[org_name]
+
+                            # Auto-calculate coordinates if missing
+                            loc = event_data.get('location', {})
+                            if loc and ('latitude' not in loc or 'longitude' not in loc):
+                                coords = get_coordinates(loc.get('address', ''), loc.get('city', ''), loc.get('country', ''))
+                                if coords:
+                                    loc['latitude'] = coords['latitude']
+                                    loc['longitude'] = coords['longitude']
 
                             events.append(event_data)
                         except yaml.YAMLError as exc:

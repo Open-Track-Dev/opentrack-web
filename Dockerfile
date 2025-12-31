@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code into the container
 COPY app/ .
 
+# Create data directory and cache
+RUN mkdir -p /app/data/.cache && chmod -R 777 /app/data
+
 # Expose the port the app runs on
 EXPOSE 5000
 

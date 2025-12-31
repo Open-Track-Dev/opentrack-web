@@ -208,6 +208,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function renderList(events) {
         const list = document.getElementById('event-list');
+        const currentYear = moment().year();
         if (events.length === 0) {
             list.innerHTML = `
                 <div class="text-center py-5">
@@ -221,7 +222,26 @@ document.addEventListener('DOMContentLoaded', function() {
             const dateObj = moment(event.date);
             const month = dateObj.format('MMM');
             const day = dateObj.format('D');
+            const year = dateObj.year();
+            const showYear = year !== currentYear;
             const description = event.description || '';
+            
+            let speakersText = 'TBA';
+            if (event.speakers) {
+                if (typeof event.speakers === 'number') {
+                    speakersText = `${event.speakers}`;
+                } else if (typeof event.speakers === 'object') {
+                    const num = event.speakers.number;
+                    const more = event.speakers.more;
+                    if (num !== undefined) {
+                        speakersText = more ? `${num}+` : `${num}`;
+                    } else {
+                        speakersText = 'TBA';
+                    }
+                } else {
+                    speakersText = event.speakers;
+                }
+            }
             return `
             <div class="card event-card" id="event-${event.id}">
                 <div class="card-body p-4">
@@ -230,6 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="date-badge-container">
                                 <span class="date-badge-month">${month}</span>
                                 <span class="date-badge-day">${day}</span>
+                                ${showYear ? `<span class="date-badge-year">${year}</span>` : ''}
                             </div>
                             <div class="d-flex flex-column gap-1">
                                 <div class="d-flex gap-2">
@@ -284,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             <div class="col-sm-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-megaphone me-2 text-primary"></i>
-                                <span>${event.speakers || 'TBA'} Speakers</span>
+                                <span>${speakersText} Speakers</span>
                             </div>
                             <div class="col-sm-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-translate me-2 text-primary"></i>

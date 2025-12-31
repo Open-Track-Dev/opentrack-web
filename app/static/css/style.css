@@ -72,11 +72,19 @@ body {
     margin-bottom: 2px;
 }
 .date-badge-day {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 800;
     color: var(--text-main);
     display: block;
     line-height: 1;
+}
+.date-badge-year {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    display: block;
+    line-height: 1;
+    margin-top: 2px;
 }
 .event-card:hover {
     transform: translateY(-5px);
