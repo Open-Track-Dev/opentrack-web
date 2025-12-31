@@ -1,0 +1,38 @@
+.nav-pills {
+    display: flex;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    list-style: none;
+    margin: 0;
+}
+.nav-pills .nav-link {
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.nav-pills .nav-link:hover:not(.active) {
+    color: var(--text-main);
+    background: rgba(0, 0, 0, 0.05);
+}
+.nav-pills .nav-link.active {
+    background-color: white;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    color: var(--primary-color) !important;
+}
+.tab-content > .tab-pane {
+    display: none;
+}
+.tab-content > .active {
+    display: block;
+}

@@ -1,0 +1,111 @@
+.community-widget {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 1050;
+    pointer-events: none;
+}
+
+.community-trigger {
+    width: 48px;
+    height: 48px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid white;
+}
+
+.community-trigger:hover {
+    transform: scale(1.1) rotate(10deg);
+}
+
+.community-panel {
+    position: absolute;
+    top: 60px;
+    right: 0;
+    width: 320px;
+    background: white;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    padding: 24px;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+    transform-origin: top right;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+
+.community-widget.active .community-panel {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.community-widget.active .community-trigger {
+    background: #0f172a;
+}
+
+.community-header {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.community-header h6 {
+    font-weight: 800;
+    margin-bottom: 4px;
+    color: #0f172a;
+}
+
+.community-links {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.community-link-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #475569;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.community-link-item i {
+    font-size: 1.25rem;
+    margin-right: 12px;
+}
+
+.community-link-item:hover {
+    background: white;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateX(-4px);
+}
+
+@media (max-width: 576px) {
+    .community-widget {
+        top: auto;
+        bottom: 20px;
+        right: 20px;
+    }
+    .community-panel {
+        top: auto;
+        bottom: 60px;
+        transform-origin: bottom right;
+    }
+}

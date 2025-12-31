@@ -1,0 +1,85 @@
+.filter-section {
+    background: var(--card-bg);
+    padding: 32px;
+    border-radius: 20px;
+    box-shadow: var(--card-shadow);
+    position: sticky;
+    top: 100px;
+    border: 1px solid var(--border-color);
+}
+@media (max-width: 991px) {
+    .filter-section {
+        position: static;
+        margin-bottom: 40px;
+    }
+}
+@media (min-width: 1440px) {
+    .filter-section {
+        padding: 40px;
+    }
+}
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+.form-control, .form-select {
+    display: block;
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--text-main);
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    transition: all 0.2s ease-in-out;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    outline: 0;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+}
+.form-check-input {
+    width: 1.25em;
+    height: 1.25em;
+    background-color: #fff;
+    border: 2px solid var(--border-color);
+    appearance: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 70%;
+}
+.search-wrapper {
+    position: relative;
+    box-shadow: var(--card-shadow);
+    border-radius: 12px;
+}
+.search-input {
+    padding: 16px 20px 16px 54px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+.search-wrapper i {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--primary-color);
+    font-size: 1.2rem;
+}

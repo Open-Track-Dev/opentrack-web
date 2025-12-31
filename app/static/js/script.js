@@ -1,8 +1,14 @@
+import { initTabs, initDropdowns, showTab } from './modules/ui.js';
+
 document.addEventListener('DOMContentLoaded', function() {
     let allEvents = [];
     let calendar;
     let map;
     let markers = [];
+
+    initTabs();
+    initDropdowns();
+
     function initCalendar() {
         var calendarEl = document.getElementById('calendar');
         if (!calendarEl) return;
@@ -41,8 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             eventClick: function(info) {
                 info.jsEvent.preventDefault();
-                const listTab = document.getElementById('list-tab');
-                bootstrap.Tab.getInstance(listTab).show();
+                showTab('#list-view');
                 const eventId = info.event.id;
                 setTimeout(() => {
                     const element = document.getElementById(`event-${eventId}`);
@@ -58,18 +63,28 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         calendar.render();
     }
+
     function initMap() {
+        // Fix Leaflet default icon paths
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+            iconRetinaUrl: '/static/vendor/leaflet/images/marker-icon-2x.png',
+            iconUrl: '/static/vendor/leaflet/images/marker-icon.png',
+            shadowUrl: '/static/vendor/leaflet/images/marker-shadow.png',
+        });
+
         map = L.map('map').setView([20, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
     }
+
     fetch('/api/events')
         .then(response => response.json())
         .then(events => {
             allEvents = events;
-            document.getElementById('event-count').innerText = events.length;
-            document.getElementById('event-search').placeholder = "Search events by name, city, or IT topic...";
+            document.getElementById('event-count').innerText = events.filter(e => moment(e.date).isSameOrAfter(moment().startOf('day'))).length;
+            
             const tags = new Set();
             const organizers = new Map();
             events.forEach(e => {
@@ -79,6 +94,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     organizers.set(e.organizer, orgName);
                 }
             });
+
             const tagSelect = document.getElementById('filter-tags');
             Array.from(tags).sort().forEach(tag => {
                 const option = document.createElement('option');
@@ -86,6 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 option.textContent = tag;
                 tagSelect.appendChild(option);
             });
+
             const organizerFilter = document.getElementById('filter-organizer');
             Array.from(organizers.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
                 const option = document.createElement('option');
@@ -93,11 +110,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 option.textContent = name;
                 organizerFilter.appendChild(option);
             });
+
             initCalendar();
             initMap();
             loadStateFromUrl();
             renderList(getFilteredEvents());
             updateMarkers(getFilteredEvents());
+
             document.getElementById('filter-type').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('filter-time').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('filter-free').addEventListener('change', () => { filterAll(); updateUrl(); });
@@ -105,6 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('filter-organizer').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('filter-tags').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('event-search').addEventListener('input', () => { filterAll(); updateUrl(); });
+
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('event')) {
                 const eventId = urlParams.get('event');
@@ -117,6 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 500);
             }
         });
+
     function getFilteredEvents() {
         const type = document.getElementById('filter-type').value;
         const timeFilter = document.getElementById('filter-time').value;
@@ -126,6 +147,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const isOnline = document.getElementById('filter-online').checked;
         const selectedTags = Array.from(document.getElementById('filter-tags').selectedOptions).map(opt => opt.value);
         const now = moment().startOf('day');
+
         return allEvents.filter(e => {
             const eventDate = moment(e.date);
             const typeMatch = !type || e.type === type;
@@ -147,6 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return typeMatch && organizerMatch && searchMatch && tagsMatch && timeMatch && freeMatch && onlineMatch;
         });
     }
+
     function updateUrl() {
         const params = new URLSearchParams();
         const search = document.getElementById('event-search').value;
@@ -156,6 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const free = document.getElementById('filter-free').checked;
         const online = document.getElementById('filter-online').checked;
         const tags = Array.from(document.getElementById('filter-tags').selectedOptions).map(opt => opt.value);
+
         if (search) params.set('search', search);
         if (type) params.set('type', type);
         if (time && time !== 'future') params.set('time', time);
@@ -163,9 +187,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (free) params.set('free', 'true');
         if (online) params.set('online', 'true');
         if (tags.length > 0) params.set('tags', tags.join(','));
+
         const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
         window.history.replaceState({}, '', newUrl);
     }
+
     function loadStateFromUrl() {
         const params = new URLSearchParams(window.location.search);
         if (params.has('search')) document.getElementById('event-search').value = params.get('search');
@@ -183,13 +209,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
+
     function filterAll() {
         const filtered = getFilteredEvents();
-        document.getElementById('event-count').innerText = filtered.length;
+        const activeCount = filtered.filter(e => moment(e.date).isSameOrAfter(moment().startOf('day'))).length;
+        document.getElementById('event-count').innerText = activeCount;
         renderList(filtered);
         updateMarkers(filtered);
         if (calendar) calendar.refetchEvents();
     }
+
     function formatPrice(price) {
         if (!price) return 'Contact for price';
         if (price === 'free' || price === 'Free') return 'Free';
@@ -206,6 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return price;
     }
+
     function renderList(events) {
         const list = document.getElementById('event-list');
         const currentYear = moment().year();
@@ -244,33 +274,31 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return `
             <div class="card event-card" id="event-${event.id}">
-                <div class="card-body p-4">
+                <div class="date-section">
+                    <div class="date-badge-container">
+                        <span class="date-badge-month">${month}</span>
+                        <span class="date-badge-day">${day}</span>
+                        ${showYear ? `<span class="date-badge-year">${year}</span>` : ''}
+                    </div>
+                </div>
+                <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-3">
-                        <div class="d-flex gap-3 align-items-center">
-                            <div class="date-badge-container">
-                                <span class="date-badge-month">${month}</span>
-                                <span class="date-badge-day">${day}</span>
-                                ${showYear ? `<span class="date-badge-year">${year}</span>` : ''}
-                            </div>
-                            <div class="d-flex flex-column gap-1">
-                                <div class="d-flex gap-2">
-                                    <span class="event-type-badge" 
-                                          style="background-color: ${event.type === 'Conference' ? '#6366f1' : '#10b981'}; color: white;">
-                                        ${event.type}
-                                    </span>
-                                    ${event.online ? `
-                                        <span class="event-type-badge bg-info text-white">
-                                            <i class="bi bi-globe me-1"></i>Online
-                                        </span>
-                                    ` : ''}
-                                </div>
-                            </div>
+                        <div class="d-flex gap-2">
+                            <span class="event-type-badge" 
+                                  style="background-color: ${event.type === 'Conference' ? '#6366f1' : '#10b981'}; color: white;">
+                                ${event.type}
+                            </span>
+                            ${event.online ? `
+                                <span class="event-type-badge bg-primary text-white" style="background-color: #0dcaf0 !important;">
+                                    <i class="bi bi-globe me-1"></i>Online
+                                </span>
+                            ` : ''}
                         </div>
                         <div class="dropdown">
                             <button class="btn btn-link text-muted p-0" data-bs-toggle="dropdown">
                                 <i class="bi bi-three-dots-vertical"></i>
                             </button>
-                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                            <ul class="dropdown-menu shadow-sm border-0">
                                 <li><a class="dropdown-item py-2" href="/event/${event.id}.ics">
                                     <i class="bi bi-calendar-event me-2"></i>Download ICS
                                 </a></li>
@@ -280,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </ul>
                         </div>
                     </div>
-                    <h4 class="card-title fw-bold mb-1">${event.name || event.title}</h4>
+                    <h4 class="fw-bold mb-1">${event.name || event.title}</h4>
                     <div class="mb-3 d-flex align-items-center">
                         ${event.organizer_details && event.organizer_details.image_url ? `
                             <img src="${event.organizer_details.image_url}" alt="${event.organizer}" class="organizer-img">
@@ -290,33 +318,39 @@ document.addEventListener('DOMContentLoaded', function() {
                         </span>
                     </div>
                     <div class="text-muted mb-4">
-                        <div class="row g-2">
-                            <div class="col-sm-6 mb-2 small d-flex align-items-center">
+                        <div class="row">
+                            <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-calendar3 me-2 text-primary"></i>
-                                ${moment(event.date).format('MMM D, YYYY')}${event.end_date ? ' — ' + moment(event.end_date).format('MMM D, YYYY') : ''}
+                                <span><strong>Date:</strong> ${moment(event.date).format('MMM D, YYYY')}${event.end_date ? ' — ' + moment(event.end_date).format('MMM D, YYYY') : ''}</span>
                             </div>
-                            <div class="col-sm-6 mb-2 small d-flex align-items-center">
+                            <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-geo-alt me-2 text-primary"></i>
-                                ${event.location.city}, ${event.location.country}
+                                <span><strong>Location:</strong> ${event.location.city}, ${event.location.country}</span>
                             </div>
-                            <div class="col-sm-6 mb-2 small d-flex align-items-center">
+                            <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-ticket-perforated me-2 text-primary"></i>
-                                <span class="price-tag ${formatPrice(event.price) === 'Free' ? 'text-success' : ''}">${formatPrice(event.price)}</span>
+                                <span><strong>Price:</strong> <span class="price-tag ${formatPrice(event.price) === 'Free' ? 'text-success' : ''}">${formatPrice(event.price)}</span></span>
                             </div>
-                            <div class="col-sm-6 mb-2 small d-flex align-items-center">
+                            <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-megaphone me-2 text-primary"></i>
-                                <span>${speakersText} Speakers</span>
+                                <span><strong>Speakers:</strong> ${speakersText}</span>
                             </div>
-                            <div class="col-sm-6 mb-2 small d-flex align-items-center">
+                            <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-translate me-2 text-primary"></i>
-                                <span>${event.language || 'English'}</span>
+                                <span><strong>Language:</strong> ${event.language || 'English'}</span>
                             </div>
+                            ${event.online ? `
+                            <div class="col-md-6 mb-2 small d-flex align-items-center">
+                                <i class="bi bi-globe me-2 text-primary"></i>
+                                <span><strong>Access:</strong> Online</span>
+                            </div>
+                            ` : ''}
                         </div>
                     </div>
-                    <p class="card-text text-secondary mb-4" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                    <p class="text-secondary mb-4" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
                         ${description}
                     </p>
-                    <div class="d-flex flex-wrap gap-2 align-items-center pt-3 border-top">
+                    <div class="d-flex flex-wrap gap-2 align-items-center pt-4 border-top mt-2">
                         <div class="d-flex flex-wrap gap-1">
                             ${event.tags.map(tag => `<span class="tag-badge">#${tag}</span>`).join('')}
                         </div>
@@ -328,7 +362,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
             </div>
-        `; }).join('');
+            `; }).join('');
+
         document.querySelectorAll('.share-event').forEach(btn => {
             btn.addEventListener('click', function() {
                 const id = this.getAttribute('data-id');
@@ -344,6 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
     function updateMarkers(events) {
         if (!map) return;
         markers.forEach(m => map.removeLayer(m));
@@ -363,9 +399,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
     window.scrollToEvent = function(eventId) {
-        const listTab = document.getElementById('list-tab');
-        bootstrap.Tab.getOrCreateInstance(listTab).show();
+        showTab('#list-view');
         setTimeout(() => {
             const element = document.getElementById(`event-${eventId}`);
             if (element) {
@@ -375,26 +411,41 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 300);
     };
-    const listTab = document.getElementById('list-tab');
-    if (listTab) {
-        listTab.addEventListener('shown.bs.tab', function () {
+
+    document.addEventListener('tabShown', (e) => {
+        const targetId = e.detail.target;
+        if (targetId === '#calendar-view' && calendar) {
+            calendar.render();
+            calendar.updateSize();
+        } else if (targetId === '#map-view' && map) {
+            map.invalidateSize();
+        }
+    });
+
+    // Community Widget Click Handling
+    const communityWidget = document.querySelector('.community-widget');
+    const communityTrigger = document.querySelector('.community-trigger');
+
+    if (communityTrigger && communityWidget) {
+        communityTrigger.addEventListener('click', function(e) {
+            e.stopPropagation();
+            communityWidget.classList.toggle('active');
         });
-    }
-    const calendarTab = document.getElementById('calendar-tab');
-    if (calendarTab) {
-        calendarTab.addEventListener('shown.bs.tab', function () {
-            if (calendar) {
-                calendar.render();
-                calendar.updateSize();
+
+        // Close widget when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!communityWidget.contains(e.target)) {
+                communityWidget.classList.remove('active');
+            }
+        });
+
+        // Close widget on ESC key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                communityWidget.classList.remove('active');
             }
         });
     }
-    const mapTab = document.getElementById('map-tab');
-    if (mapTab) {
-        mapTab.addEventListener('shown.bs.tab', function () {
-            if (map) {
-                map.invalidateSize();
-            }
-        });
-    }
+
+    // function loadGithubRepos() { ... removed for static content }
 });
