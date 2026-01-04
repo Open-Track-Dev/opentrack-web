@@ -30,6 +30,23 @@ OpenTrack.dev is a community-driven platform for tracking IT events, conferences
 - `docker-compose.yml`: Configuration for running the application with Docker Compose.
 - `requirements.txt`: Python dependencies.
 
+## Data Synchronization
+
+The project includes a script to synchronize events from Odoo. This can be scheduled to run daily to keep the event list up-to-date.
+
+### Syncing from Odoo (Web Scraping)
+
+The project includes modular, object-oriented synchronization scripts. The Odoo sync script now uses web scraping to fetch public events from an Odoo instance. This is useful when API access is restricted.
+
+1. Set the required environment variables (optional, defaults to https://www.odoo.com):
+   ```bash
+   export ODOO_URL="https://your-odoo-instance.com"
+   ```
+2. Run the script:
+   ```bash
+   python scripts/sync_odoo_events.py
+   ```
+
 ## How it Works
 
 The system automatically loads events from the `app/data/events` directory. It parses YAML files for structured data and Markdown files for descriptions. Events are automatically sorted chronologically by their start date.

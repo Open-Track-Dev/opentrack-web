@@ -5,9 +5,31 @@ document.addEventListener('DOMContentLoaded', function() {
     let calendar;
     let map;
     let markers = [];
+    let tomSelects = {};
 
     initTabs();
     initDropdowns();
+
+    function initTomSelect(id) {
+        if (tomSelects[id]) return tomSelects[id];
+        const el = document.getElementById(id);
+        if (!el) return null;
+        
+        tomSelects[id] = new TomSelect(el, {
+            plugins: ['remove_button'],
+            create: false,
+            onDropdownOpen: () => {
+                // Fix for Tom Select in scrollable areas
+            }
+        });
+        
+        tomSelects[id].on('change', () => {
+            filterAll();
+            updateUrl();
+        });
+        
+        return tomSelects[id];
+    }
 
     function initCalendar() {
         var calendarEl = document.getElementById('calendar');
@@ -87,12 +109,17 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const tags = new Set();
             const organizers = new Map();
+            const languages = new Map();
+            
             events.forEach(e => {
                 e.tags.forEach(t => tags.add(t));
                 if (e.organizer) {
                     const orgName = (e.organizer_details && e.organizer_details.name) ? e.organizer_details.name : e.organizer;
                     organizers.set(e.organizer, orgName);
                 }
+                const langName = (e.language_details && e.language_details.name) ? e.language_details.name : (e.language || 'en');
+                const langId = (e.language_details && e.language_details.id) ? e.language_details.id : (e.language || 'en').toLowerCase();
+                languages.set(langId, langName);
             });
 
             const tagSelect = document.getElementById('filter-tags');
@@ -110,19 +137,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 option.textContent = name;
                 organizerFilter.appendChild(option);
             });
+            
+            const languageFilter = document.getElementById('filter-language');
+            Array.from(languages.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = name;
+                languageFilter.appendChild(option);
+            });
 
-            initCalendar();
-            initMap();
+            initTomSelect('filter-type');
+            initTomSelect('filter-organizer');
+            initTomSelect('filter-language');
+            initTomSelect('filter-tags');
+
             loadStateFromUrl();
             renderList(getFilteredEvents());
-            updateMarkers(getFilteredEvents());
 
-            document.getElementById('filter-type').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('filter-time').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('filter-free').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('filter-online').addEventListener('change', () => { filterAll(); updateUrl(); });
-            document.getElementById('filter-organizer').addEventListener('change', () => { filterAll(); updateUrl(); });
-            document.getElementById('filter-tags').addEventListener('change', () => { filterAll(); updateUrl(); });
             document.getElementById('event-search').addEventListener('input', () => { filterAll(); updateUrl(); });
 
             const urlParams = new URLSearchParams(window.location.search);
@@ -139,19 +173,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
     function getFilteredEvents() {
-        const type = document.getElementById('filter-type').value;
+        const selectedTypes = tomSelects['filter-type'] ? tomSelects['filter-type'].getValue() : [];
         const timeFilter = document.getElementById('filter-time').value;
-        const organizer = document.getElementById('filter-organizer').value;
+        const selectedOrganizers = tomSelects['filter-organizer'] ? tomSelects['filter-organizer'].getValue() : [];
+        const selectedLanguages = tomSelects['filter-language'] ? tomSelects['filter-language'].getValue() : [];
         const search = document.getElementById('event-search').value.toLowerCase();
         const isFree = document.getElementById('filter-free').checked;
         const isOnline = document.getElementById('filter-online').checked;
-        const selectedTags = Array.from(document.getElementById('filter-tags').selectedOptions).map(opt => opt.value);
+        const selectedTags = tomSelects['filter-tags'] ? tomSelects['filter-tags'].getValue() : [];
         const now = moment().startOf('day');
 
         return allEvents.filter(e => {
             const eventDate = moment(e.date);
-            const typeMatch = !type || e.type === type;
-            const organizerMatch = !organizer || e.organizer === organizer;
+            const typeMatch = selectedTypes.length === 0 || selectedTypes.includes(e.type);
+            const organizerMatch = selectedOrganizers.length === 0 || selectedOrganizers.includes(e.organizer);
+            
+            const eventLangId = (e.language_details && e.language_details.id) ? e.language_details.id : (e.language || 'en').toLowerCase();
+            const languageMatch = selectedLanguages.length === 0 || selectedLanguages.includes(eventLangId);
+            
             const searchMatch = !search || 
                 (e.name || e.title).toLowerCase().includes(search) || 
                 e.location.city.toLowerCase().includes(search) ||
@@ -166,24 +205,26 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const freeMatch = !isFree || (e.price === 'free' || e.price === 'Free' || (typeof e.price === 'object' && (e.price.amount === 0 || e.price.min_amount === 0)));
             const onlineMatch = !isOnline || e.online === true;
-            return typeMatch && organizerMatch && searchMatch && tagsMatch && timeMatch && freeMatch && onlineMatch;
+            return typeMatch && organizerMatch && languageMatch && searchMatch && tagsMatch && timeMatch && freeMatch && onlineMatch;
         });
     }
 
     function updateUrl() {
         const params = new URLSearchParams();
         const search = document.getElementById('event-search').value;
-        const type = document.getElementById('filter-type').value;
+        const types = tomSelects['filter-type'] ? tomSelects['filter-type'].getValue() : [];
         const time = document.getElementById('filter-time').value;
-        const organizer = document.getElementById('filter-organizer').value;
+        const organizers = tomSelects['filter-organizer'] ? tomSelects['filter-organizer'].getValue() : [];
+        const languages = tomSelects['filter-language'] ? tomSelects['filter-language'].getValue() : [];
         const free = document.getElementById('filter-free').checked;
         const online = document.getElementById('filter-online').checked;
-        const tags = Array.from(document.getElementById('filter-tags').selectedOptions).map(opt => opt.value);
+        const tags = tomSelects['filter-tags'] ? tomSelects['filter-tags'].getValue() : [];
 
         if (search) params.set('search', search);
-        if (type) params.set('type', type);
+        if (types.length > 0) params.set('type', types.join(','));
         if (time && time !== 'future') params.set('time', time);
-        if (organizer) params.set('organizer', organizer);
+        if (organizers.length > 0) params.set('organizer', organizers.join(','));
+        if (languages.length > 0) params.set('language', languages.join(','));
         if (free) params.set('free', 'true');
         if (online) params.set('online', 'true');
         if (tags.length > 0) params.set('tags', tags.join(','));
@@ -195,18 +236,30 @@ document.addEventListener('DOMContentLoaded', function() {
     function loadStateFromUrl() {
         const params = new URLSearchParams(window.location.search);
         if (params.has('search')) document.getElementById('event-search').value = params.get('search');
-        if (params.has('type')) document.getElementById('filter-type').value = params.get('type');
+        
+        if (params.has('type')) {
+            const types = params.get('type').split(',');
+            if (tomSelects['filter-type']) tomSelects['filter-type'].setValue(types);
+        }
+        
         if (params.has('time')) document.getElementById('filter-time').value = params.get('time');
-        if (params.has('organizer')) document.getElementById('filter-organizer').value = params.get('organizer');
+        
+        if (params.has('organizer')) {
+            const orgs = params.get('organizer').split(',');
+            if (tomSelects['filter-organizer']) tomSelects['filter-organizer'].setValue(orgs);
+        }
+
+        if (params.has('language')) {
+            const langs = params.get('language').split(',');
+            if (tomSelects['filter-language']) tomSelects['filter-language'].setValue(langs);
+        }
+
         if (params.has('free')) document.getElementById('filter-free').checked = true;
         if (params.has('online')) document.getElementById('filter-online').checked = true;
+        
         if (params.has('tags')) {
             const tags = params.get('tags').split(',');
-            const tagSelect = document.getElementById('filter-tags');
-            tags.forEach(tag => {
-                const opt = Array.from(tagSelect.options).find(o => o.value === tag);
-                if (opt) opt.selected = true;
-            });
+            if (tomSelects['filter-tags']) tomSelects['filter-tags'].setValue(tags);
         }
     }
 
@@ -215,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const activeCount = filtered.filter(e => moment(e.date).isSameOrAfter(moment().startOf('day'))).length;
         document.getElementById('event-count').innerText = activeCount;
         renderList(filtered);
-        updateMarkers(filtered);
+        if (map) updateMarkers(filtered);
         if (calendar) calendar.refetchEvents();
     }
 
@@ -226,11 +279,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
         };
         if (typeof price === 'object') {
+            const currencySymbol = (price.currency_details && price.currency_details.symbol) ? price.currency_details.symbol : (price.currency || '€');
             if (price.min_amount !== undefined && price.max_amount !== undefined) {
-                return `${formatNum(price.min_amount)} - ${formatNum(price.max_amount)} ${price.currency}`;
+                return `${formatNum(price.min_amount)} - ${formatNum(price.max_amount)} ${currencySymbol}`;
             }
             if (price.amount !== undefined) {
-                return `${formatNum(price.amount)} ${price.currency}`;
+                return `${formatNum(price.amount)} ${currencySymbol}`;
             }
         }
         return price;
@@ -341,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-translate me-2 text-primary"></i>
-                                <span><strong>Language:</strong> ${event.language || 'English'}</span>
+                                <span><strong>Language:</strong> ${event.language_details && event.language_details.icon ? event.language_details.icon + ' ' : ''}${event.language_details && event.language_details.name ? event.language_details.name : (event.language || 'en')}</span>
                             </div>
                             ${event.online ? `
                             <div class="col-md-6 mb-2 small d-flex align-items-center">
@@ -418,11 +472,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.addEventListener('tabShown', (e) => {
         const targetId = e.detail.target;
-        if (targetId === '#calendar-view' && calendar) {
-            calendar.render();
-            calendar.updateSize();
-        } else if (targetId === '#map-view' && map) {
-            map.invalidateSize();
+        if (targetId === '#calendar-view') {
+            if (!calendar) {
+                initCalendar();
+            } else {
+                calendar.render();
+                calendar.updateSize();
+            }
+        } else if (targetId === '#map-view') {
+            if (!map) {
+                initMap();
+                updateMarkers(getFilteredEvents());
+            } else {
+                map.invalidateSize();
+            }
         }
     });
 

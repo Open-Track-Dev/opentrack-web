@@ -7,6 +7,8 @@ from geopy.geocoders import Nominatim
 import json
 import time
 
+import threading
+
 app = Flask(__name__)
 
 # Determine base data directory
@@ -20,6 +22,9 @@ else:
 
 EVENTS_DIR = os.path.join(DATA_ROOT, 'events')
 ORGANIZERS_DIR = os.path.join(DATA_ROOT, 'organizers')
+LANGUAGES_DIR = os.path.join(DATA_ROOT, 'languages')
+CURRENCIES_DIR = os.path.join(DATA_ROOT, 'currencies')
+COUNTRIES_DIR = os.path.join(DATA_ROOT, 'countries')
 CACHE_DIR = os.path.join(DATA_ROOT, '.cache')
 
 if not os.path.exists(CACHE_DIR):
@@ -27,17 +32,34 @@ if not os.path.exists(CACHE_DIR):
 
 geolocator = Nominatim(user_agent="opentrack-web")
 
-def get_coordinates(address, city, country):
+# Lock for cache file operations
+cache_lock = threading.Lock()
+
+def get_coordinates(address, city, country, async_fetch=False):
     cache_file = os.path.join(CACHE_DIR, 'geocoding_cache.json')
-    cache = {}
-    if os.path.exists(cache_file):
-        with open(cache_file, 'r') as f:
-            cache = json.load(f)
-    
     query = f"{address}, {city}, {country}"
-    if query in cache:
-        return cache[query]
     
+    with cache_lock:
+        cache = {}
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r') as f:
+                    cache = json.load(f)
+            except Exception:
+                pass
+        
+        if query in cache:
+            return cache[query]
+    
+    if async_fetch:
+        # Start a background thread to fetch and cache the coordinates
+        thread = threading.Thread(target=fetch_and_cache_coordinates, args=(address, city, country, query, cache_file))
+        thread.start()
+        return None
+
+    return fetch_and_cache_coordinates(address, city, country, query, cache_file)
+
+def fetch_and_cache_coordinates(address, city, country, query, cache_file):
     # Try multiple queries from most specific to least specific
     queries = [
         f"{address}, {city}, {country}",
@@ -50,9 +72,20 @@ def get_coordinates(address, city, country):
             location = geolocator.geocode(q)
             if location:
                 coords = {'latitude': location.latitude, 'longitude': location.longitude}
-                cache[query] = coords # Cache the original full query
-                with open(cache_file, 'w') as f:
-                    json.dump(cache, f)
+                
+                with cache_lock:
+                    cache = {}
+                    if os.path.exists(cache_file):
+                        try:
+                            with open(cache_file, 'r') as f:
+                                cache = json.load(f)
+                        except Exception:
+                            pass
+                    
+                    cache[query] = coords # Cache the original full query
+                    with open(cache_file, 'w') as f:
+                        json.dump(cache, f)
+                
                 print(f"Successfully geocoded: {q} -> {coords}")
                 time.sleep(1) # Respect Nominatim's usage policy
                 return coords
@@ -101,6 +134,78 @@ def load_organizers():
     return organizers
 
 
+def load_languages():
+    """
+    Loads all languages from the data/languages directory.
+    Returns a dictionary of languages with their directory name as the key.
+    """
+    languages = {}
+    if not os.path.exists(LANGUAGES_DIR):
+        return languages
+
+    for item in os.listdir(LANGUAGES_DIR):
+        item_path = os.path.join(LANGUAGES_DIR, item)
+        if os.path.isdir(item_path):
+            yaml_path = os.path.join(item_path, 'language.yaml')
+            if os.path.exists(yaml_path):
+                with open(yaml_path, 'r') as f:
+                    try:
+                        lang_data = yaml.safe_load(f)
+                        lang_data['id'] = item
+                        languages[item.lower()] = lang_data
+                    except yaml.YAMLError as exc:
+                        print(f"Error parsing {yaml_path}: {exc}")
+    return languages
+
+
+def load_currencies():
+    """
+    Loads all currencies from the data/currencies directory.
+    Returns a dictionary of currencies with their directory name as the key.
+    """
+    currencies = {}
+    if not os.path.exists(CURRENCIES_DIR):
+        return currencies
+
+    for item in os.listdir(CURRENCIES_DIR):
+        item_path = os.path.join(CURRENCIES_DIR, item)
+        if os.path.isdir(item_path):
+            yaml_path = os.path.join(item_path, 'currency.yaml')
+            if os.path.exists(yaml_path):
+                with open(yaml_path, 'r') as f:
+                    try:
+                        currency_data = yaml.safe_load(f)
+                        currency_data['id'] = item
+                        currencies[item.lower()] = currency_data
+                    except yaml.YAMLError as exc:
+                        print(f"Error parsing {yaml_path}: {exc}")
+    return currencies
+
+
+def load_countries():
+    """
+    Loads all countries from the data/countries directory.
+    Returns a dictionary of countries with their directory name as the key.
+    """
+    countries = {}
+    if not os.path.exists(COUNTRIES_DIR):
+        return countries
+
+    for item in os.listdir(COUNTRIES_DIR):
+        item_path = os.path.join(COUNTRIES_DIR, item)
+        if os.path.isdir(item_path):
+            yaml_path = os.path.join(item_path, 'country.yaml')
+            if os.path.exists(yaml_path):
+                with open(yaml_path, 'r') as f:
+                    try:
+                        country_data = yaml.safe_load(f)
+                        country_data['id'] = item
+                        countries[item.lower()] = country_data
+                    except yaml.YAMLError as exc:
+                        print(f"Error parsing {yaml_path}: {exc}")
+    return countries
+
+
 def load_events():
     """
     Loads all events from the data/events directory and the data root directory.
@@ -109,6 +214,8 @@ def load_events():
     """
     events = []
     organizers = load_organizers()
+    languages = load_languages()
+    currencies = load_currencies()
 
     dirs_to_scan = [EVENTS_DIR]
     # Also scan for event directories in DATA_ROOT (excluding organizers and known system dirs)
@@ -148,10 +255,22 @@ def load_events():
                             if org_name in organizers:
                                 event_data['organizer_details'] = organizers[org_name]
 
-                            # Auto-calculate coordinates if missing
+                            # Link language data
+                            lang_id = str(event_data.get('language', '')).lower()
+                            if lang_id in languages:
+                                event_data['language_details'] = languages[lang_id]
+
+                            # Link currency data
+                            price = event_data.get('price')
+                            if isinstance(price, dict) and 'currency' in price:
+                                curr_id = str(price['currency']).lower()
+                                if curr_id in currencies:
+                                    event_data['price']['currency_details'] = currencies[curr_id]
+
+                            # Auto-calculate coordinates if missing (asynchronously)
                             loc = event_data.get('location', {})
                             if loc and ('latitude' not in loc or 'longitude' not in loc):
-                                coords = get_coordinates(loc.get('address', ''), loc.get('city', ''), loc.get('country', ''))
+                                coords = get_coordinates(loc.get('address', ''), loc.get('city', ''), loc.get('country', ''), async_fetch=True)
                                 if coords:
                                     loc['latitude'] = coords['latitude']
                                     loc['longitude'] = coords['longitude']

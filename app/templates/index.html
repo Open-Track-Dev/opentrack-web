@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
     <link href="{{ url_for('static', filename='vendor/fullcalendar/main.min.css') }}" rel='stylesheet' />
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon.png') }}">
 </head>
 <body>
@@ -104,8 +105,7 @@
                     <h5 class="fw-bold mb-4 text-dark">Filters</h5>
                     <div class="mb-4">
                         <label class="form-label small text-muted text-uppercase fw-bold mb-3">Event Type</label>
-                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-type">
-                            <option value="">All Types</option>
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-type" multiple placeholder="Select types...">
                             <option value="Conference">Conference</option>
                             <option value="Exhibition">Exhibition</option>
                             <option value="Meetup">Meetup</option>
@@ -136,15 +136,18 @@
                     </div>
                     <div class="mb-4">
                         <label class="form-label small text-muted text-uppercase fw-bold mb-3">Organizer</label>
-                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-organizer">
-                            <option value="">All Organizers</option>
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-organizer" multiple placeholder="Select organizers...">
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small text-muted text-uppercase fw-bold mb-3">Language</label>
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-language" multiple placeholder="Select languages...">
                         </select>
                     </div>
                     <div>
                         <label class="form-label small text-muted text-uppercase fw-bold mb-3">Tags</label>
-                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-tags" multiple style="height: 150px;">
+                        <select class="form-select border-0 bg-light rounded-3 p-2" id="filter-tags" multiple placeholder="Select tags...">
                         </select>
-                        <div class="form-text mt-2 small">Hold Ctrl (Cmd) to select multiple tags.</div>
                     </div>
                 </div>
             </aside>
@@ -166,7 +169,7 @@
     </div>
     <div class="community-widget">
         <div class="community-trigger">
-            <i class="bi bi-github"></i>
+            <i class="bi bi-people"></i>
         </div>
         <div class="community-panel">
             <div class="community-header">
@@ -174,6 +177,13 @@
                 <p class="small text-muted mb-0">Help us build Open-Track</p>
             </div>
             <div class="community-links">
+                <a href="https://matrix.to/#/%23opentrack.dev-general:matrix.org" target="_blank" class="community-link-item">
+                    <i class="bi bi-chat-dots text-info"></i>
+                    <div>
+                        <div class="fw-bold">Matrix Chat</div>
+                        <div class="small opacity-75">Join our general room</div>
+                    </div>
+                </a>
                 <a href="https://github.com/Open-Track-Dev/opentrack-web" target="_blank" class="community-link-item">
                     <i class="bi bi-window-sidebar text-primary"></i>
                     <div>
@@ -209,6 +219,7 @@
     <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/fullcalendar/main.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/moment/moment.min.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     <script type="module" src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

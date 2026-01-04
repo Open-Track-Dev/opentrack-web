@@ -2,3 +2,6 @@ Flask
 PyYAML
 icalendar
 geopy
+html2text
+requests
+beautifulsoup4
