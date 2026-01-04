@@ -12,7 +12,10 @@
   </component>
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/countries" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/currencies" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/events" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/languages" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/organizers" vcs="Git" />
   </component>
 </project>
