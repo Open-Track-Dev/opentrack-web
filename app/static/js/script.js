@@ -15,13 +15,40 @@ document.addEventListener('DOMContentLoaded', function() {
         const el = document.getElementById(id);
         if (!el) return null;
         
-        tomSelects[id] = new TomSelect(el, {
+        const config = {
             plugins: ['remove_button'],
             create: false,
+            onItemAdd: function() {
+                this.setTextboxValue('');
+                this.refreshOptions();
+            },
             onDropdownOpen: () => {
                 // Fix for Tom Select in scrollable areas
             }
-        });
+        };
+
+        if (id === 'filter-organizer') {
+            config.render = {
+                option: function(data, escape) {
+                    const icon = data.icon || el.querySelector(`option[value="${data.value}"]`)?.getAttribute('data-icon');
+                    return `<div>
+                        ${icon ? `<img src="${escape(icon)}" class="organizer-filter-img" onerror="this.style.display='none'">` : ''}
+                        <span>${escape(data.text)}</span>
+                    </div>`;
+                },
+                item: function(data, escape) {
+                    const icon = data.icon || el.querySelector(`option[value="${data.value}"]`)?.getAttribute('data-icon');
+                    return `<div>
+                        ${icon ? `<img src="${escape(icon)}" class="organizer-filter-img-small" onerror="this.style.display='none'">` : ''}
+                        <span>${escape(data.text)}</span>
+                    </div>`;
+                }
+            };
+            // Ensure data-icon is available in the data object
+            config.dataAttr = 'data-data';
+        }
+
+        tomSelects[id] = new TomSelect(el, config);
         
         tomSelects[id].on('change', () => {
             filterAll();
@@ -45,20 +72,30 @@ document.addEventListener('DOMContentLoaded', function() {
             events: function(info, successCallback, failureCallback) {
                 const filtered = getFilteredEvents();
                 successCallback(filtered.map(e => {
-                    const start = moment(e.date).startOf('day').toISOString();
-                    let end = e.date;
+                    const startDate = new Date(e.date);
+                    startDate.setHours(0, 0, 0, 0);
+                    const start = startDate.toISOString();
+                    
+                    let end;
                     if (e.end_date) {
-                        end = moment(e.end_date).endOf('day').toISOString();
+                        const endDate = new Date(e.end_date);
+                        endDate.setHours(23, 59, 59, 999);
+                        end = endDate.toISOString();
                     } else {
-                        end = moment(e.date).endOf('day').toISOString();
+                        const endDate = new Date(e.date);
+                        endDate.setHours(23, 59, 59, 999);
+                        end = endDate.toISOString();
                     }
+                    
+                    const isAllDay = !e.end_date || e.date === e.end_date;
+
                     return {
                         id: e.id,
                         title: e.name || e.title,
                         start: start,
                         end: end,
                         url: e.url,
-                        allDay: !e.end_date || moment(e.date).isSame(e.end_date, 'day'),
+                        allDay: isAllDay,
                         backgroundColor: e.type === 'Conference' ? '#4f46e5' : (e.type === 'Exhibition' ? '#f59e0b' : '#10b981'),
                         borderColor: e.type === 'Conference' ? '#4f46e5' : (e.type === 'Exhibition' ? '#f59e0b' : '#10b981'),
                         extendedProps: {
@@ -105,22 +142,70 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(events => {
             allEvents = events;
-            document.getElementById('event-count').innerText = events.filter(e => moment(e.date).isSameOrAfter(moment().startOf('day'))).length;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            document.getElementById('event-count').innerText = events.filter(e => new Date(e.date) >= today).length;
             
             const tags = new Set();
             const organizers = new Map();
             const languages = new Map();
+            const countries = new Map();
             
             events.forEach(e => {
                 e.tags.forEach(t => tags.add(t));
                 if (e.organizer) {
                     const orgName = (e.organizer_details && e.organizer_details.name) ? e.organizer_details.name : e.organizer;
-                    organizers.set(e.organizer, orgName);
+                    const orgIcon = (e.organizer_details && e.organizer_details.image_url) ? e.organizer_details.image_url : null;
+                    organizers.set(e.organizer, {name: orgName, icon: orgIcon});
                 }
                 const langName = (e.language_details && e.language_details.name) ? e.language_details.name : (e.language || 'en');
                 const langId = (e.language_details && e.language_details.id) ? e.language_details.id : (e.language || 'en').toLowerCase();
                 languages.set(langId, langName);
+                
+                const countryId = (e.location && e.location.country) ? e.location.country.toLowerCase() : 'unknown';
+                const countryName = (e.location && e.location.country_details && e.location.country_details.name) ? e.location.country_details.name : countryId;
+                countries.set(countryId, countryName);
             });
+
+            const countryFilter = document.getElementById('filter-country');
+            Array.from(countries.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
+                const option = document.createElement('option');
+                option.value = id;
+                const countryEvent = events.find(e => e.location && e.location.country && e.location.country.toLowerCase() === id);
+                const icon = (countryEvent && countryEvent.location.country_details) ? countryEvent.location.country_details.icon : '';
+                option.textContent = icon ? `${icon} ${name}` : name;
+                countryFilter.appendChild(option);
+            });
+
+            const cityFilter = document.getElementById('filter-city');
+            // Cities will be populated based on selected country or all if none selected
+            function updateCityFilter() {
+                const selectedCountries = tomSelects['filter-country'] ? tomSelects['filter-country'].getValue() : [];
+                const cities = new Set();
+                events.forEach(e => {
+                    const countryId = (e.location && e.location.country) ? e.location.country.toLowerCase() : 'unknown';
+                    if (selectedCountries.length === 0 || selectedCountries.includes(countryId)) {
+                        if (e.location && e.location.city) cities.add(e.location.city);
+                    }
+                });
+                
+                if (tomSelects['filter-city']) {
+                    const currentSelected = tomSelects['filter-city'].getValue();
+                    tomSelects['filter-city'].clearOptions();
+                    Array.from(cities).sort().forEach(city => {
+                        tomSelects['filter-city'].addOption({value: city, text: city});
+                    });
+                    tomSelects['filter-city'].setValue(currentSelected);
+                } else {
+                    Array.from(cities).sort().forEach(city => {
+                        const option = document.createElement('option');
+                        option.value = city;
+                        option.textContent = city;
+                        cityFilter.appendChild(option);
+                    });
+                }
+            }
+            updateCityFilter();
 
             const tagSelect = document.getElementById('filter-tags');
             Array.from(tags).sort().forEach(tag => {
@@ -131,10 +216,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             const organizerFilter = document.getElementById('filter-organizer');
-            Array.from(organizers.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => {
+            Array.from(organizers.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name)).forEach(([id, data]) => {
                 const option = document.createElement('option');
                 option.value = id;
-                option.textContent = name;
+                option.textContent = data.name;
+                if (data.icon) {
+                    option.setAttribute('data-icon', data.icon);
+                }
                 organizerFilter.appendChild(option);
             });
             
@@ -146,10 +234,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 languageFilter.appendChild(option);
             });
 
+            initTomSelect('filter-country');
+            initTomSelect('filter-city');
             initTomSelect('filter-type');
             initTomSelect('filter-organizer');
             initTomSelect('filter-language');
             initTomSelect('filter-tags');
+
+            if (tomSelects['filter-country']) {
+                tomSelects['filter-country'].on('change', () => {
+                    updateCityFilter();
+                    filterAll();
+                    updateUrl();
+                });
+            }
 
             loadStateFromUrl();
             renderList(getFilteredEvents());
@@ -170,9 +268,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }, 500);
             }
+
+            // After events are loaded and rendered, fetch coordinates asynchronously
+            fetchCoordinates();
         });
 
+    function fetchCoordinates() {
+        fetch('/api/coordinates')
+            .then(response => response.json())
+            .then(coordsMap => {
+                allEvents.forEach(event => {
+                    if (coordsMap[event.id]) {
+                        event.location.latitude = coordsMap[event.id].latitude;
+                        event.location.longitude = coordsMap[event.id].longitude;
+                    }
+                });
+                // Update map if it's already initialized
+                if (map) {
+                    updateMarkers(getFilteredEvents());
+                }
+            })
+            .catch(error => console.error('Error fetching coordinates:', error));
+    }
+
     function getFilteredEvents() {
+        const selectedCountries = tomSelects['filter-country'] ? tomSelects['filter-country'].getValue() : [];
+        const selectedCities = tomSelects['filter-city'] ? tomSelects['filter-city'].getValue() : [];
         const selectedTypes = tomSelects['filter-type'] ? tomSelects['filter-type'].getValue() : [];
         const timeFilter = document.getElementById('filter-time').value;
         const selectedOrganizers = tomSelects['filter-organizer'] ? tomSelects['filter-organizer'].getValue() : [];
@@ -181,10 +302,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const isFree = document.getElementById('filter-free').checked;
         const isOnline = document.getElementById('filter-online').checked;
         const selectedTags = tomSelects['filter-tags'] ? tomSelects['filter-tags'].getValue() : [];
-        const now = moment().startOf('day');
+        
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
 
         return allEvents.filter(e => {
-            const eventDate = moment(e.date);
+            const eventDate = new Date(e.date);
+            eventDate.setHours(0, 0, 0, 0);
+            
+            const countryId = (e.location && e.location.country) ? e.location.country.toLowerCase() : 'unknown';
+            const countryMatch = selectedCountries.length === 0 || selectedCountries.includes(countryId);
+            const cityMatch = selectedCities.length === 0 || (e.location && selectedCities.includes(e.location.city));
+            
             const typeMatch = selectedTypes.length === 0 || selectedTypes.includes(e.type);
             const organizerMatch = selectedOrganizers.length === 0 || selectedOrganizers.includes(e.organizer);
             
@@ -199,19 +328,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const tagsMatch = selectedTags.length === 0 || selectedTags.some(t => e.tags.includes(t));
             let timeMatch = true;
             if (timeFilter === 'future') {
-                timeMatch = eventDate.isSameOrAfter(now);
+                timeMatch = eventDate >= now;
             } else if (timeFilter === 'past') {
-                timeMatch = eventDate.isBefore(now);
+                timeMatch = eventDate < now;
             }
             const freeMatch = !isFree || (e.price === 'free' || e.price === 'Free' || (typeof e.price === 'object' && (e.price.amount === 0 || e.price.min_amount === 0)));
             const onlineMatch = !isOnline || e.online === true;
-            return typeMatch && organizerMatch && languageMatch && searchMatch && tagsMatch && timeMatch && freeMatch && onlineMatch;
+            return countryMatch && cityMatch && typeMatch && organizerMatch && languageMatch && searchMatch && tagsMatch && timeMatch && freeMatch && onlineMatch;
         });
     }
 
     function updateUrl() {
         const params = new URLSearchParams();
         const search = document.getElementById('event-search').value;
+        const countries = tomSelects['filter-country'] ? tomSelects['filter-country'].getValue() : [];
+        const cities = tomSelects['filter-city'] ? tomSelects['filter-city'].getValue() : [];
         const types = tomSelects['filter-type'] ? tomSelects['filter-type'].getValue() : [];
         const time = document.getElementById('filter-time').value;
         const organizers = tomSelects['filter-organizer'] ? tomSelects['filter-organizer'].getValue() : [];
@@ -221,6 +352,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const tags = tomSelects['filter-tags'] ? tomSelects['filter-tags'].getValue() : [];
 
         if (search) params.set('search', search);
+        if (countries.length > 0) params.set('country', countries.join(','));
+        if (cities.length > 0) params.set('city', cities.join(','));
         if (types.length > 0) params.set('type', types.join(','));
         if (time && time !== 'future') params.set('time', time);
         if (organizers.length > 0) params.set('organizer', organizers.join(','));
@@ -237,6 +370,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const params = new URLSearchParams(window.location.search);
         if (params.has('search')) document.getElementById('event-search').value = params.get('search');
         
+        if (params.has('country')) {
+            const countries = params.get('country').split(',');
+            if (tomSelects['filter-country']) {
+                tomSelects['filter-country'].setValue(countries);
+                updateCityFilter();
+            }
+        }
+
+        if (params.has('city')) {
+            const cities = params.get('city').split(',');
+            if (tomSelects['filter-city']) tomSelects['filter-city'].setValue(cities);
+        }
+
         if (params.has('type')) {
             const types = params.get('type').split(',');
             if (tomSelects['filter-type']) tomSelects['filter-type'].setValue(types);
@@ -265,7 +411,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function filterAll() {
         const filtered = getFilteredEvents();
-        const activeCount = filtered.filter(e => moment(e.date).isSameOrAfter(moment().startOf('day'))).length;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const activeCount = filtered.filter(e => new Date(e.date) >= today).length;
         document.getElementById('event-count').innerText = activeCount;
         renderList(filtered);
         if (map) updateMarkers(filtered);
@@ -292,7 +440,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderList(events) {
         const list = document.getElementById('event-list');
-        const currentYear = moment().year();
+        const currentYear = new Date().getFullYear();
         if (events.length === 0) {
             list.innerHTML = `
                 <div class="text-center py-5">
@@ -303,10 +451,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         list.innerHTML = events.map(event => {
-            const dateObj = moment(event.date);
-            const month = dateObj.format('MMM');
-            const day = dateObj.format('D');
-            const year = dateObj.year();
+            const dateObj = new Date(event.date);
+            const month = dateObj.toLocaleDateString('en-US', { month: 'short' });
+            const day = dateObj.getDate();
+            const year = dateObj.getFullYear();
             const showYear = year !== currentYear;
             const description = event.description || '';
             
@@ -379,23 +527,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="row">
                             <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-calendar3 me-2 text-primary"></i>
-                                <span><strong>Date:</strong> ${moment(event.date).format('MMM D, YYYY')}${event.end_date ? ' — ' + moment(event.end_date).format('MMM D, YYYY') : ''}</span>
+                                <span><strong>Date:</strong> ${new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${event.end_date ? ' — ' + new Date(event.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</span>
                             </div>
                             <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-geo-alt me-2 text-primary"></i>
-                                <span><strong>Location:</strong> ${event.location.city}, ${event.location.country}</span>
+                                <span><strong>Location:</strong> ${event.location.city}, ${event.location.country_details && event.location.country_details.icon ? event.location.country_details.icon + ' ' : ''}${event.location.country_details && event.location.country_details.name ? event.location.country_details.name : event.location.country}</span>
                             </div>
                             <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-ticket-perforated me-2 text-primary"></i>
                                 <span><strong>Price:</strong> <span class="price-tag ${formatPrice(event.price) === 'Free' ? 'text-success' : ''}">${formatPrice(event.price)}</span></span>
                             </div>
                             <div class="col-md-6 mb-2 small d-flex align-items-center">
-                                <i class="bi bi-megaphone me-2 text-primary"></i>
-                                <span><strong>Speakers:</strong> ${speakersText}</span>
-                            </div>
-                            <div class="col-md-6 mb-2 small d-flex align-items-center">
                                 <i class="bi bi-translate me-2 text-primary"></i>
-                                <span><strong>Language:</strong> ${event.language_details && event.language_details.icon ? event.language_details.icon + ' ' : ''}${event.language_details && event.language_details.name ? event.language_details.name : (event.language || 'en')}</span>
+                                <span><strong>Language:</strong> ${event.language_details && event.language_details.name ? event.language_details.name : (event.language || 'en')}</span>
                             </div>
                             ${event.online ? `
                             <div class="col-md-6 mb-2 small d-flex align-items-center">

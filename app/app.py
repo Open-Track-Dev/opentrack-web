@@ -216,6 +216,7 @@ def load_events():
     organizers = load_organizers()
     languages = load_languages()
     currencies = load_currencies()
+    countries = load_countries()
 
     dirs_to_scan = [EVENTS_DIR]
     # Also scan for event directories in DATA_ROOT (excluding organizers and known system dirs)
@@ -260,6 +261,12 @@ def load_events():
                             if lang_id in languages:
                                 event_data['language_details'] = languages[lang_id]
 
+                            # Link country data
+                            loc = event_data.get('location', {})
+                            country_id = str(loc.get('country', '')).lower()
+                            if country_id in countries:
+                                event_data['location']['country_details'] = countries[country_id]
+
                             # Link currency data
                             price = event_data.get('price')
                             if isinstance(price, dict) and 'currency' in price:
@@ -267,13 +274,12 @@ def load_events():
                                 if curr_id in currencies:
                                     event_data['price']['currency_details'] = currencies[curr_id]
 
-                            # Auto-calculate coordinates if missing (asynchronously)
-                            loc = event_data.get('location', {})
+                            # Auto-calculate coordinates if missing (but don't wait for them)
                             if loc and ('latitude' not in loc or 'longitude' not in loc):
-                                coords = get_coordinates(loc.get('address', ''), loc.get('city', ''), loc.get('country', ''), async_fetch=True)
-                                if coords:
-                                    loc['latitude'] = coords['latitude']
-                                    loc['longitude'] = coords['longitude']
+                                country_name = loc.get('country', '')
+                                if 'country_details' in loc:
+                                    country_name = loc['country_details'].get('name', country_name)
+                                get_coordinates(loc.get('address', ''), loc.get('city', ''), countries.get(country_name.lower(), {"name": country_name})["name"], async_fetch=True)
 
                             events.append(event_data)
                         except yaml.YAMLError as exc:
@@ -305,6 +311,44 @@ def api_events():
     """Returns all events as a JSON object for the frontend."""
     events = load_events()
     return jsonify(events)
+
+
+@app.route('/api/coordinates')
+def api_coordinates():
+    """Returns coordinates for all events as a JSON object."""
+    events = load_events()
+    countries = load_countries()
+    coordinates = {}
+    
+    for event in events:
+        loc = event.get('location', {})
+        if loc:
+            # Check if coordinates are already in the event file
+            if 'latitude' in loc and 'longitude' in loc:
+                coordinates[event['id']] = {
+                    'latitude': loc['latitude'],
+                    'longitude': loc['longitude']
+                }
+            else:
+                # Try to fetch from cache or Nominatim
+                country_code = str(loc.get('country', '')).lower()
+                country_name = country_code
+                if 'country_details' in loc:
+                    country_name = loc['country_details'].get('name', country_name)
+                
+                # Use the country details we already loaded if possible
+                country_data = countries.get(country_code, {"name": country_name})
+                
+                coords = get_coordinates(
+                    loc.get('address', ''), 
+                    loc.get('city', ''), 
+                    country_data.get("name", country_name), 
+                    async_fetch=False  # We want them now for this API call
+                )
+                if coords:
+                    coordinates[event['id']] = coords
+                    
+    return jsonify(coordinates)
 
 
 @app.route('/event/<event_id>.ics')
